@@ -1,0 +1,10 @@
+Build:
+Using a Makefile: make to build my program
+
+Execute:
+./demo example.demo
+if you parse successfully, it will tell you. 
+Otherwise, it gives you errors with associated line number.
+
+./demo -h
+give you help information for command lines.

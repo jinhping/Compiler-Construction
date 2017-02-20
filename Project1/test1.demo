@@ -1,0 +1,30 @@
+//count max number of consecutive ones
+
+procedure main{
+ 
+  int A[0:20], i;
+  int count;
+  int max;
+  max = 0;
+  count = 0;
+  
+  for i = 0 to 19 by 1 {
+    if (i == 10 or i == 11 or i == 12) then {
+		A[i] = 1;
+	}
+	else A[i] = 0;
+  }
+  for i = 0 to 19 by 1 {
+    if (A[i] == 1) then {
+		count = count + 1;
+		if (max < count) then {
+			max = count;
+			count = 0;
+		}
+	}
+	else {
+		count = 0;
+	}
+  }
+}
+

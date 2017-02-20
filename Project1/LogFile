@@ -1,0 +1,10 @@
+LogFile is unbuffered.
+
+COMP 506 DEMO Compiler
+Run on 'sky.clear.rice.edu' at Sun Feb 19 18:18:50 2017
+Using code base R02.02
+
+File disposition:
+	Reading from stdin.
+	stdout is unbuffered.
+
