@@ -1,0 +1,10 @@
+mmult
+
+This benchmark implements a matrix-matrix multiply.
+It prints out a single number, indicating whether or not
+the matrix-matrix multiple produced the expected answer.
+ 
+
+  mmult.i  -- the code
+  mmultsmall1.d -- an input file for 20 x 20 arrays
+   		   should produce a zero as its sole output
