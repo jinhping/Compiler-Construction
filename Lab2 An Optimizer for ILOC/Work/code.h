@@ -4,7 +4,7 @@
 
 using namespace std;
 
-unordered_set<string> opcodes_set( {
+/* unordered_set<string> opcodes_set( {
 "nop", "add", "addl", "sub", "subl", "mult", "multl", "div", "divl", "lshift", "lshiftl", "rshift", "rshiftl",
 "and", "andl", "or", "orl", "not", "loadl", "load", "loadAI", "loadAO", "cload", "cloadAI", "cloadAO", 
 "store", "storeAI", "storeAO", "cstore", "cstoreAI", "cstoreAO", "i2i", "c2c", "i2c", "c2i", "br", "cbr",
@@ -19,7 +19,7 @@ bool isOpcode(char * token) {
 	} else {
 		return false;
 	}
-}
+} */
 
 class instruction {
 public:
@@ -28,8 +28,6 @@ public:
 	
 	vector<string> leftOperands;
 	vector<string> rightOperands;
-	
-	bool hasLabel = false;
 	
 	int line_number = 0;
 };

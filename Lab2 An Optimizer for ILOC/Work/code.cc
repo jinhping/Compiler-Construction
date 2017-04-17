@@ -5,6 +5,8 @@
 #include "code.h"
 #include <cctype>
 #include <unordered_map>
+#include <math.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -27,7 +29,6 @@ void ParseInstructions(string filename, vector<instruction> &instructions) {
 		line_number += 1;
 		instr.line_number = line_number;
 		if (line.find(":") != string::npos) {
-			instr.hasLabel = true;
 			for (int i = 0; i < line.length(); i++) {
 				if (line[i] == ':') {
 					string label_name = line;
@@ -41,7 +42,6 @@ void ParseInstructions(string filename, vector<instruction> &instructions) {
 				}
 			}
 		} else {
-			instr.hasLabel = false;
 			int i = 0;
 			while (isalpha(line[i]) && i < line.length()) {
 				i++;
@@ -272,7 +272,7 @@ void OutputParseResults(vector<instruction> instructions) {
 		ofstream outfile;
 		outfile.open ("output.i", ios::app);
 		if (x.opcode == "halt") {
-			outfile << x.opcode << x.line_number << endl;
+			outfile << x.opcode << endl;
 		}
 		else if (x.opcode == "nop") {
 			outfile << x.label << ": " << x.opcode << endl; 
@@ -296,7 +296,7 @@ void OutputParseResults(vector<instruction> instructions) {
 			outfile << x.opcode << " " << x.leftOperands[0] << " => " << x.rightOperands[0] << endl;
 		}
 		else if (x.opcode == "storeAI" || x.opcode == "storeAO" || x.opcode == "cstoreAI" || x.opcode == "cstoreAO") {
-			outfile << x.opcode << " " << x.leftOperands[0] << " => " << x.rightOperands[0] << ", " << x.rightOperands[1] << endl;
+			outfile << x.opcode << " " << x.leftOperands[0] << " => " << x.rightOperands[0] << ", " << x.rightOperands[1] << endl;		
 		}
 		else {
 			outfile << x.opcode << " " << x.leftOperands[0] << ", " << x.leftOperands[1] << " => " << x.rightOperands[0] << endl;
@@ -328,7 +328,8 @@ void buildCFG(vector<int> &leader, vector<int> &last, vector<instruction> instru
 		}
 	}
 	instruction instr = instructions.back();
-	int total_line_number = instr.line_number;
+	//int total_line_number = instr.line_number;
+	int total_line_number = instructions.size();
 	for (int i = 0; i < leader.size(); i++) {
 		int tmp = leader[i];
 		while (tmp <= total_line_number && leaders_set.find(tmp + 1) == leaders_set.end()) {
@@ -336,6 +337,263 @@ void buildCFG(vector<int> &leader, vector<int> &last, vector<instruction> instru
 		}
 		last.push_back(tmp);
 	}
+}
+
+bool IsPowerOfTwo(int x)
+{
+    return (x & (x - 1)) == 0;
+}
+
+void localValueNumbering(vector<int> leader, vector<int> last, vector<instruction> &instructions) {
+	int basic_block_number = leader.size();
+	for (int i = 0; i < basic_block_number; i++) {
+		int begin = leader[i] - 1;
+		int end = last[i] - 1;
+		
+		unordered_map <string, int> expr2VN;
+		unordered_map <string, int> VN;
+		unordered_map <int, string> name;
+		int new_value_number = 0;
+		
+		for (int j = begin; j <= end; j++) {
+			if (instructions[j].opcode == "nop" || instructions[j].opcode == "not" || instructions[j].opcode == "store"
+				|| instructions[j].opcode == "storeAI" || instructions[j].opcode == "storeAO" || instructions[j].opcode == "cstore"
+				|| instructions[j].opcode == "cstoreAI" || instructions[j].opcode == "cstoreAO"  || instructions[j].opcode == "i2i"
+				|| instructions[j].opcode == "c2c" || instructions[j].opcode == "i2c" || instructions[j].opcode == "c2i"
+				|| instructions[j].opcode == "br" || instructions[j].opcode == "cbr" || instructions[j].opcode == "halt" 
+				|| instructions[j].opcode == "read" || instructions[j].opcode ==  "cread" || instructions[j].opcode == "output"
+				|| instructions[j].opcode == "coutput" || instructions[j].opcode == "write" || instructions[j].opcode == "cwrite"
+				|| instructions[j].opcode == "loadI" || instructions[j].opcode == "load" || instructions[j].opcode ==  "cload") {
+				if (instructions[j].opcode == "halt") {
+					break;
+				}
+				continue;
+			}
+			else {
+				if (instructions[j].opcode == "multI") {		
+					if (IsPowerOfTwo(stoi(instructions[j].leftOperands[1]))) {
+						double tmp_d = sqrt(stoi(instructions[j].leftOperands[1]));
+						int tmp = tmp_d;
+						instruction instr;
+						instr.opcode = "lshiftI";
+						instr.leftOperands.push_back(instructions[j].leftOperands[0]);
+						instr.leftOperands.push_back(to_string(tmp));
+						instr.rightOperands.push_back(instructions[j].rightOperands[0]);
+						instructions[j] = instr;
+					}
+				} 
+			
+				if (VN.find(instructions[j].leftOperands[0]) == VN.end()) {
+					VN[instructions[j].leftOperands[0]] = new_value_number;
+					new_value_number += 1;
+				}
+				if (VN.find(instructions[j].leftOperands[1]) == VN.end()) {
+					VN[instructions[j].leftOperands[1]] = new_value_number;
+					new_value_number += 1;
+				}
+
+				string expr = to_string(VN[instructions[j].leftOperands[0]]) + instructions[j].opcode + to_string(VN[instructions[j].leftOperands[1]]);
+				if (expr2VN.find(expr) != expr2VN.end()) {
+					if (VN[name[expr2VN[expr]]] == expr2VN[expr]) {
+						instruction instr;
+						instr.opcode = "i2i";
+						instr.leftOperands.push_back(name[expr2VN[expr]]);
+						instr.rightOperands.push_back(instructions[j].rightOperands[0]);
+						instructions[j] = instr;
+					}
+					VN[instructions[j].rightOperands[0]] = expr2VN[expr];
+				}
+				else {
+					VN[instructions[j].rightOperands[0]] = new_value_number;
+					expr2VN[expr] = new_value_number;
+					name[new_value_number] = instructions[j].rightOperands[0];
+					new_value_number++;
+				}
+			}
+		}
+		
+	}
+}
+
+void getNewValues(vector<instruction> instructions, int &new_register, int &new_label) {
+	for (auto x : instructions) {
+		if (x.label != "") {
+			int length = x.label.length();
+			string tmp_label = x.label.substr(1, length - 1);
+			int tmp_label_value = stoi(tmp_label);
+			if (tmp_label_value > new_label) {
+				new_label = tmp_label_value;
+			}
+		}
+		if (x.leftOperands.size() != 0) {
+			for (auto y : x.leftOperands) {
+				if (y[0] != 'r') {
+					continue;
+				}
+				int length = y.length();
+				string tmp_register = y.substr(1, length -  1);
+				int tmp_register_value = stoi(tmp_register);
+				if (tmp_register_value > new_register) {
+					new_register = tmp_register_value;
+				}
+			}
+		}
+		if (x.rightOperands.size() != 0) {
+			for (auto z : x.rightOperands) {
+				if (z[0] != 'r') {
+					continue;
+				}
+				int length = z.length();
+				string tmp_register = z.substr(1, length -  1);
+				int tmp_register_value = stoi(tmp_register);
+				if (tmp_register_value > new_register) {
+					new_register = tmp_register_value;
+				}
+			}
+		}
+	}
+}
+
+
+void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &instructions, 
+				int new_register, int new_label) 
+{
+//	cout << "before" << endl;
+	vector<instruction> insert_instructions;
+
+	int basic_block_number = leader.size();
+	for (int i = 0; i < basic_block_number; i++) {
+		int begin = leader[i] - 1;
+		int end = last[i] - 1;
+		
+	//	cout << "begin: " << begin << endl;
+	//	cout << "end: " << end << endl;
+		
+	//	cout << instructions[begin].opcode << endl;
+	
+		
+		if (instructions[end - 1].opcode == "halt") {
+			for (int k = begin; k <= end - 1; k++) {
+				insert_instructions.push_back(instructions[k]);
+			}
+			instructions.swap(insert_instructions);
+			continue;
+		}
+		if (instructions[begin].label != "" && instructions[end].opcode == "cbr") {
+			if (instructions[begin].label == instructions[end].rightOperands[0] && instructions[end - 2].opcode == "addI") {
+				// do loop unrolling by 4
+				
+	//			cout << "before assign new" << endl;
+				
+				instruction instr1;
+				instr1.opcode = "nop";
+				instr1.label = instructions[begin].label;
+				insert_instructions.push_back(instr1);
+				
+				instruction instr2;
+				instr2.opcode = "rshiftI";
+				instr2.leftOperands.push_back(instructions[end - 1].leftOperands[1]);
+				instr2.leftOperands.push_back("2");
+				string new_r = "r" + to_string(new_register + 1);
+				new_register += 1;
+				instr2.rightOperands.push_back(new_r);
+				insert_instructions.push_back(instr2);
+				
+				instruction instr3;
+				instr3.opcode = "lshiftI";
+				instr3.leftOperands.push_back(new_r);
+				instr3.leftOperands.push_back("2");
+				instr3.rightOperands.push_back(new_r);
+				insert_instructions.push_back(instr3);
+				
+				instruction instr4;
+				instr4.opcode = "cbr";
+				instr4.leftOperands.push_back(new_r);
+				string new_label_1 = "L" + to_string(new_label + 1);
+				new_label = new_label + 1;
+				instr4.rightOperands.push_back(new_label_1);
+				string new_label_2 = "L" + to_string(new_label + 1);
+				new_label = new_label + 1;
+				instr4.rightOperands.push_back(new_label_2);
+				insert_instructions.push_back(instr4);
+				
+				instruction instr5;
+				instr5.opcode = "nop";
+				instr5.label = new_label_1;
+				insert_instructions.push_back(instr5);
+				
+				for (int b = 0; b < 4; b++) {
+					for (int a = begin + 1; a <= end - 2; a++) {
+						insert_instructions.push_back(instructions[a]);
+					}
+				}
+				
+				instruction instr6;
+				instr6.opcode = instructions[end - 1].opcode;
+				instr6.leftOperands.push_back(instructions[end - 1].leftOperands[0]);
+				instr6.leftOperands.push_back(new_r);
+				instr6.rightOperands.push_back(instructions[end].leftOperands[0]);
+				insert_instructions.push_back(instr6);
+				
+				instruction instr7;
+				instr7.opcode = "cbr";
+				instr7.leftOperands.push_back(instructions[end].leftOperands[0]);
+				instr7.rightOperands.push_back(new_label_1);
+				instr7.rightOperands.push_back(new_label_2);
+				insert_instructions.push_back(instr7);
+
+				
+				//starting with L12: 
+				instruction instr8;
+				instr8.opcode = "nop";
+				instr8.label = new_label_2;
+				insert_instructions.push_back(instr8);
+
+				insert_instructions.push_back(instructions[end - 1]);
+				
+				instruction instr9;
+				instr9.opcode = "cbr";
+				instr9.leftOperands.push_back(instructions[end].leftOperands[0]);
+				string new_label_3 = "L" + to_string(new_label + 1);
+				new_label = new_label + 1;
+				instr9.rightOperands.push_back(new_label_3);
+				instr9.rightOperands.push_back(instructions[end].rightOperands[1]);
+				insert_instructions.push_back(instr9);
+				
+				//starting with L13:
+				instruction instr10;
+				instr10.opcode = "nop";
+				instr10.label = new_label_3;
+				insert_instructions.push_back(instr10);
+				
+				for (int c = begin + 1; c <= end - 2; c++) {
+					insert_instructions.push_back(instructions[c]);
+				}
+				
+				insert_instructions.push_back(instructions[end - 1]);
+				insert_instructions.push_back(instr9);
+				
+	//			cout << "after assign new" << endl;
+
+			} 
+			else {
+	//			cout << "here" << endl;
+				for (int k = begin; k <= end; k++) {
+					insert_instructions.push_back(instructions[k]);
+				}
+				continue;
+			}
+		}
+		else {
+	//		cout << "there" << endl;
+			for (int k = begin; k <= end; k++) {
+				insert_instructions.push_back(instructions[k]);
+			}
+			continue;
+		}
+
+	}
+//	cout << "after" << endl;
 }
 
 int main(int argc, char** argv) {
@@ -348,20 +606,49 @@ int main(int argc, char** argv) {
 	vector<instruction> instructions;
 	ParseInstructions(filename, instructions);
 	
-	OutputParseResults(instructions);
-	
+		
 	vector<int> leader;
 	vector<int> last;
 	buildCFG(leader, last, instructions);
 	
-	for (int i = 0; i < leader.size(); i++) {
-		cout << leader[i] << " ";
+/* 	for (auto x : leader) {
+		cout << x << " ";
 	}
 	cout << endl;
-	for (int i = 0; i < last.size(); i++) {
-		cout << last[i] << " ";
+	for (auto x : last) {
+		cout << x << " ";
+	}
+	cout << endl; */
+	
+	
+	localValueNumbering(leader, last, instructions);
+	
+	vector<int> leader2;
+	vector<int> last2;
+	
+	buildCFG(leader2, last2, instructions);
+
+	int new_register = -1;
+	int new_label = -1;
+	
+	getNewValues(instructions, new_register, new_label);
+	
+	sort(leader2.begin(), leader2.end());
+	sort(last2.begin(), last2.end());
+
+	for (auto x : leader2) {
+		cout << x << " ";
 	}
 	cout << endl;
+	for (auto x : last2) {
+		cout << x << " ";
+	}
+	cout << endl;
+	
+	loopUnrolling(leader2, last2, instructions, new_register, new_label);
+	
+	OutputParseResults(instructions);
+
 	
 	return 0;
 }
