@@ -596,6 +596,18 @@ void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &ins
 //	cout << "after" << endl;
 }
 
+void updateLineNumber(vector<instruction> &instructions, unordered_map<string, int> &label2line) {
+	int line_number = 1;
+	for (auto x : instructions) {
+		x.line_number = line_number;
+		line_number ++;
+		if (x.label != "") {
+			label2line[x.label] = x.line_number;
+		}
+	}
+}
+
+
 int main(int argc, char** argv) {
 	if (argc < 2) {
 		cout << "missing input file" << endl;
@@ -607,27 +619,16 @@ int main(int argc, char** argv) {
 	ParseInstructions(filename, instructions);
 	
 		
-	vector<int> leader;
-	vector<int> last;
-	buildCFG(leader, last, instructions);
-	
-/* 	for (auto x : leader) {
-		cout << x << " ";
-	}
-	cout << endl;
-	for (auto x : last) {
-		cout << x << " ";
-	}
-	cout << endl; */
+
 	
 	
-	localValueNumbering(leader, last, instructions);
+
 	
 	vector<int> leader2;
 	vector<int> last2;
 	
 	buildCFG(leader2, last2, instructions);
-
+	
 	int new_register = -1;
 	int new_label = -1;
 	
@@ -646,6 +647,26 @@ int main(int argc, char** argv) {
 	cout << endl;
 	
 	loopUnrolling(leader2, last2, instructions, new_register, new_label);
+	
+	
+	updateLineNumber(instructions, label2line);
+
+	
+	vector<int> leader;
+	vector<int> last;
+	buildCFG(leader, last, instructions);
+	
+/* 	for (auto x : leader) {
+		cout << x << " ";
+	}
+	cout << endl;
+	for (auto x : last) {
+		cout << x << " ";
+	}
+	cout << endl; */
+	
+	
+	localValueNumbering(leader, last, instructions);
 	
 	OutputParseResults(instructions);
 
