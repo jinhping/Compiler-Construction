@@ -1,0 +1,27 @@
+Jinhao Ping
+jp64
+
+All my code about Local Value Numbering and Loop Unrolling are implemented in C++
+under code.h, code.cc
+
+How to build my lab:
+	First, run make clean
+	Then, run make
+
+How to run my lab:
+	then you do ./code + v/l/b + YOUR_INPUT_FILENAME
+	
+	choose one from v, l and b
+		v stands for value numbering
+		l stands for looping unrolling
+		b stands for both
+	
+	It should generate a file named output4.i
+	Use output4.i as input for Sim
+	Go to Sim Folder
+	Copy output4.i contents into output.i
+	run ./sim output.i + test files 
+	
+	check your cycles now. 
+	
+	

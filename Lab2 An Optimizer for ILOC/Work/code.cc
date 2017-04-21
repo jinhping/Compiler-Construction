@@ -270,7 +270,7 @@ void ParseInstructions(string filename, vector<instruction> &instructions) {
 void OutputParseResults(vector<instruction> instructions) {
 	for (auto x : instructions) {
 		ofstream outfile;
-		outfile.open ("output.i", ios::app);
+		outfile.open ("output4.i", ios::app);
 		if (x.opcode == "halt") {
 			outfile << x.opcode << endl;
 		}
@@ -458,20 +458,14 @@ void getNewValues(vector<instruction> instructions, int &new_register, int &new_
 void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &instructions, 
 				int new_register, int new_label) 
 {
-//	cout << "before" << endl;
+
 	vector<instruction> insert_instructions;
 
 	int basic_block_number = leader.size();
 	for (int i = 0; i < basic_block_number; i++) {
 		int begin = leader[i] - 1;
 		int end = last[i] - 1;
-		
-	//	cout << "begin: " << begin << endl;
-	//	cout << "end: " << end << endl;
-		
-	//	cout << instructions[begin].opcode << endl;
-	
-		
+			
 		if (instructions[end - 1].opcode == "halt") {
 			for (int k = begin; k <= end - 1; k++) {
 				insert_instructions.push_back(instructions[k]);
@@ -483,19 +477,30 @@ void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &ins
 			if (instructions[begin].label == instructions[end].rightOperands[0] && instructions[end - 2].opcode == "addI") {
 				// do loop unrolling by 4
 				
-	//			cout << "before assign new" << endl;
 				
 				instruction instr1;
 				instr1.opcode = "nop";
 				instr1.label = instructions[begin].label;
 				insert_instructions.push_back(instr1);
 				
-				instruction instr2;
-				instr2.opcode = "rshiftI";
-				instr2.leftOperands.push_back(instructions[end - 1].leftOperands[1]);
-				instr2.leftOperands.push_back("2");
+				
+				instruction tmp1;
+				tmp1.opcode = "sub";
+				tmp1.leftOperands.push_back(instructions[end - 1].leftOperands[1]);
+				tmp1.leftOperands.push_back(instructions[end - 1].leftOperands[0]);
 				string new_r = "r" + to_string(new_register + 1);
 				new_register += 1;
+		//		cout << "new_r: " << new_r << endl;
+				tmp1.rightOperands.push_back(new_r);
+				insert_instructions.push_back(tmp1);
+
+				
+				instruction instr2;
+				instr2.opcode = "rshiftI";
+				instr2.leftOperands.push_back(new_r);
+				instr2.leftOperands.push_back("2");
+			//	string new_r = "r" + to_string(new_register + 1);
+			//	new_register += 1;
 				instr2.rightOperands.push_back(new_r);
 				insert_instructions.push_back(instr2);
 				
@@ -505,6 +510,18 @@ void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &ins
 				instr3.leftOperands.push_back("2");
 				instr3.rightOperands.push_back(new_r);
 				insert_instructions.push_back(instr3);
+				
+				
+				instruction tmp2;
+				tmp2.opcode = "add";
+				tmp2.leftOperands.push_back(instructions[end - 1].leftOperands[0]);
+				tmp2.leftOperands.push_back(new_r);
+				string new_reg = "r" + to_string(new_register + 1);
+				new_register++;		
+	//			cout << new_reg << endl;
+				tmp2.rightOperands.push_back(new_reg);
+				insert_instructions.push_back(tmp2);
+
 				
 				instruction instr4;
 				instr4.opcode = "cbr";
@@ -529,9 +546,15 @@ void loopUnrolling(vector<int> leader, vector<int> last,vector<instruction> &ins
 				}
 				
 				instruction instr6;
-				instr6.opcode = instructions[end - 1].opcode;
+				if (instructions[end - 1].opcode == "cmp_LE") {
+					instr6.opcode = "cmp_LT";
+				}
+				else if (instructions[end - 1].opcode == "cmp_LT") {
+					instr6.opcode = "cmp_LE";
+				}
+			//	instr6.opcode = instructions[end - 1].opcode;
 				instr6.leftOperands.push_back(instructions[end - 1].leftOperands[0]);
-				instr6.leftOperands.push_back(new_r);
+				instr6.leftOperands.push_back(new_reg);
 				instr6.rightOperands.push_back(instructions[end].leftOperands[0]);
 				insert_instructions.push_back(instr6);
 				
@@ -609,67 +632,70 @@ void updateLineNumber(vector<instruction> &instructions, unordered_map<string, i
 
 
 int main(int argc, char** argv) {
-	if (argc < 2) {
-		cout << "missing input file" << endl;
+	if (argc < 3) {
+		cout << "wrong command line" << endl;
 		return -1;
 	}
+
 	
-	string filename = argv[1];
-	vector<instruction> instructions;
-	ParseInstructions(filename, instructions);
-	
+	string runType = argv[1];
+
+	if (runType == "v") {
+		string filename = argv[2];
+		vector<instruction> instructions;
+		ParseInstructions(filename, instructions);
+		vector<int> leader;
+		vector<int> last;
+		buildCFG(leader, last, instructions);
+		localValueNumbering(leader, last, instructions);
+		OutputParseResults(instructions);	
+
+	}
+	else if (runType == "l") {
+		string filename = argv[2];
+		vector<instruction> instructions;
+		ParseInstructions(filename, instructions);
+		vector<int> leader2;
+		vector<int> last2;
+		buildCFG(leader2, last2, instructions);
+		int new_register = -1;
+		int new_label = -1;
+		getNewValues(instructions, new_register, new_label);
+		sort(leader2.begin(), leader2.end());
+		sort(last2.begin(), last2.end());
+		loopUnrolling(leader2, last2, instructions, new_register, new_label);
+		OutputParseResults(instructions);	
+
+	}
+	else if (runType == "b") {
+		string filename = argv[2];
+		vector<instruction> instructions;
+		ParseInstructions(filename, instructions);	
+		vector<int> leader;
+		vector<int> last;
+		buildCFG(leader, last, instructions);
+		localValueNumbering(leader, last, instructions);	
 		
+		updateLineNumber(instructions, label2line);
+		
+		vector<int> leader2;
+		vector<int> last2;
+		buildCFG(leader2, last2, instructions);		
+		int new_register = -1;
+		int new_label = -1;
+		getNewValues(instructions, new_register, new_label);
+		sort(leader2.begin(), leader2.end());
+		sort(last2.begin(), last2.end());
+		loopUnrolling(leader2, last2, instructions, new_register, new_label);
+		OutputParseResults(instructions);	
 
 	
-	
-
-	
-	vector<int> leader2;
-	vector<int> last2;
-	
-	buildCFG(leader2, last2, instructions);
-	
-	int new_register = -1;
-	int new_label = -1;
-	
-	getNewValues(instructions, new_register, new_label);
-	
-	sort(leader2.begin(), leader2.end());
-	sort(last2.begin(), last2.end());
-
-	for (auto x : leader2) {
-		cout << x << " ";
 	}
-	cout << endl;
-	for (auto x : last2) {
-		cout << x << " ";
+	else {
+		cout << "wrong runType" << endl;
+		cout << "only v, l, b accept " << endl;
+		return 0;
 	}
-	cout << endl;
-	
-	loopUnrolling(leader2, last2, instructions, new_register, new_label);
-	
-	
-	updateLineNumber(instructions, label2line);
 
-	
-	vector<int> leader;
-	vector<int> last;
-	buildCFG(leader, last, instructions);
-	
-/* 	for (auto x : leader) {
-		cout << x << " ";
-	}
-	cout << endl;
-	for (auto x : last) {
-		cout << x << " ";
-	}
-	cout << endl; */
-	
-	
-	localValueNumbering(leader, last, instructions);
-	
-	OutputParseResults(instructions);
-
-	
 	return 0;
 }
